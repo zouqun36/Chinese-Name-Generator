@@ -54,6 +54,7 @@ function getChineseZodiac(dateStr: string): string {
     zodiacYear = year - 1;
   }
   
+  // 1900年是鼠年，所以用 (zodiacYear - 1900) % 12
   const index = (zodiacYear - 1900) % 12;
   return ZODIAC_ANIMALS[index];
 }
@@ -61,7 +62,10 @@ function getChineseZodiac(dateStr: string): string {
 function formatBirthday(dateStr: string): string {
   if (!dateStr) return "";
   const date = new Date(dateStr);
-  return `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}/${month}/${day}`;
 }
 
 export default function InputForm() {
