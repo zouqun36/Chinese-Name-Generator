@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useSession, signIn } from "next-auth/react";
+import Link from "next/link";
 import { Style, Gender } from "@/lib/nameData";
 import { GeneratedName, generateNames } from "@/lib/nameGenerator";
 import NameResults from "./NameResults";
@@ -19,7 +21,7 @@ const GENDERS: { value: Gender; label: string }[] = [
   { value: "neutral", label: "Neutral" },
 ];
 
-// 农历春节日期数据 (1900-2100)
+// 农历春节日期数据 (1900-2050)
 const LUNAR_NEW_YEAR: Record<number, string> = {
   1900: "01-31", 1901: "02-19", 1902: "02-08", 1903: "01-29", 1904: "02-16", 1905: "02-04", 1906: "01-25", 1907: "02-13", 1908: "02-02", 1909: "01-22",
   1910: "02-10", 1911: "01-30", 1912: "02-18", 1913: "02-06", 1914: "01-26", 1915: "02-14", 1916: "02-03", 1917: "01-23", 1918: "02-11", 1919: "02-01",
@@ -46,15 +48,9 @@ function getChineseZodiac(dateStr: string): string {
   const date = new Date(dateStr);
   const year = date.getFullYear();
   const monthDay = `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-  
   const lunarNewYear = LUNAR_NEW_YEAR[year];
   let zodiacYear = year;
-  
-  if (lunarNewYear && monthDay < lunarNewYear) {
-    zodiacYear = year - 1;
-  }
-  
-  // 1900年是鼠年，所以用 (zodiacYear - 1900) % 12
+  if (lunarNewYear && monthDay < lunarNewYear) zodiacYear = year - 1;
   const index = (zodiacYear - 1900) % 12;
   return ZODIAC_ANIMALS[index];
 }
@@ -62,13 +58,76 @@ function getChineseZodiac(dateStr: string): string {
 function formatBirthday(dateStr: string): string {
   if (!dateStr) return "";
   const date = new Date(dateStr);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}/${month}/${day}`;
+  return `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`;
 }
 
+// ── Upgrade Modal ────────────────────────────────────────────────────────────
+interface UpgradeModalProps {
+  tier: 'anonymous' | 'free';
+  onClose: () => void;
+}
+
+function UpgradeModal({ tier, onClose }: UpgradeModalProps) {
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4" onClick={onClose}>
+      <div
+        className="bg-zinc-900 border border-zinc-700 rounded-2xl p-8 max-w-sm w-full shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="text-center mb-6">
+          <div className="text-4xl mb-3">🀄</div>
+          <h3 className="text-xl font-bold mb-2">Daily Limit Reached</h3>
+          <p className="text-zinc-400 text-sm">
+            {tier === 'anonymous'
+              ? "You've used all 3 free generations for today."
+              : "You've used all 10 free generations for today."}
+          </p>
+        </div>
+
+        <div className="space-y-3 mb-6">
+          {tier === 'anonymous' && (
+            <button
+              onClick={() => signIn('google')}
+              className="w-full py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 text-sm font-medium transition"
+            >
+              Sign in free → Get 10/day
+            </button>
+          )}
+          <Link
+            href="/pricing"
+            className="block w-full py-3 rounded-xl bg-amber-500 text-zinc-900 font-bold text-sm text-center hover:bg-amber-400 transition"
+            onClick={onClose}
+          >
+            Upgrade to Pro — 50/day ⭐
+          </Link>
+        </div>
+
+        <p className="text-center text-xs text-zinc-600">
+          Resets tomorrow · <button onClick={onClose} className="underline hover:text-zinc-400">dismiss</button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Usage Badge ──────────────────────────────────────────────────────────────
+interface UsageBadgeProps {
+  remaining: number;
+  limit: number;
+}
+function UsageBadge({ remaining, limit }: UsageBadgeProps) {
+  const pct = remaining / limit;
+  const color = pct === 0 ? 'text-red-400' : pct <= 0.3 ? 'text-amber-400' : 'text-zinc-400';
+  return (
+    <span className={`text-xs ${color}`}>
+      {remaining}/{limit} left today
+    </span>
+  );
+}
+
+// ── Main Component ───────────────────────────────────────────────────────────
 export default function InputForm() {
+  const { data: session } = useSession();
   const [originalName, setOriginalName] = useState("");
   const [gender, setGender]     = useState<Gender>("neutral");
   const [styles, setStyles]     = useState<Style[]>([]);
@@ -76,21 +135,43 @@ export default function InputForm() {
   const [names, setNames]       = useState<GeneratedName[]>([]);
   const [error, setError]       = useState("");
   const [generated, setGenerated] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [usage, setUsage]       = useState<{ remaining: number; limit: number; tier: 'anonymous' | 'free' | 'pro' } | null>(null);
 
   function toggleStyle(s: Style) {
-    setStyles((prev) =>
-      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
-    );
+    setStyles((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
   }
 
-  function handleGenerate() {
+  async function handleGenerate() {
     if (styles.length === 0) {
       setError("Please select at least one style.");
       return;
     }
     setError("");
-    setNames(generateNames(originalName, gender, styles));
-    setGenerated(true);
+    setIsLoading(true);
+
+    try {
+      // Check & increment usage
+      const res = await fetch('/api/usage', { method: 'POST' });
+      const data = await res.json();
+
+      if (res.status === 429) {
+        setShowUpgrade(true);
+        setIsLoading(false);
+        return;
+      }
+
+      setUsage({ remaining: data.remaining, limit: data.limit, tier: data.tier });
+      setNames(generateNames(originalName, gender, styles));
+      setGenerated(true);
+    } catch {
+      // If API fails, still generate (graceful degradation)
+      setNames(generateNames(originalName, gender, styles));
+      setGenerated(true);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   function handleRefresh() {
@@ -99,106 +180,122 @@ export default function InputForm() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Input card */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-7 shadow-xl">
-        <h2 className="text-xs font-semibold tracking-widest text-zinc-500 uppercase mb-6">
-          Your Details
-        </h2>
+    <>
+      {showUpgrade && usage && (
+        <UpgradeModal tier={usage.tier as 'anonymous' | 'free'} onClose={() => setShowUpgrade(false)} />
+      )}
 
-        {/* Name */}
-        <div className="mb-5">
-          <label className="block text-sm text-zinc-400 mb-2">Your name</label>
-          <input
-            type="text"
-            value={originalName}
-            onChange={(e) => setOriginalName(e.target.value)}
-            placeholder="e.g. Emily, James, Sofia…"
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-zinc-100 placeholder-zinc-600 text-sm outline-none focus:border-amber-500 transition-colors"
-          />
-        </div>
-
-        {/* Birthday */}
-        <div className="mb-5">
-          <label className="block text-sm text-zinc-400 mb-2">Birthday</label>
-          <input
-            type="date"
-            value={birthday}
-            onChange={(e) => setBirthday(e.target.value)}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-zinc-100 text-sm outline-none focus:border-amber-500 transition-colors [color-scheme:dark]"
-          />
-          {birthday && (
-            <div className="mt-2 text-xs text-zinc-500">
-              {formatBirthday(birthday)} · 生肖: {getChineseZodiac(birthday)}
-            </div>
-          )}
-        </div>
-
-        {/* Gender */}
-        <div className="mb-5">
-          <label className="block text-sm text-zinc-400 mb-2">Gender</label>
-          <div className="flex gap-2 flex-wrap">
-            {GENDERS.map(({ value, label }) => (
-              <button
-                key={value}
-                onClick={() => setGender(value)}
-                className={`px-5 py-2 rounded-xl text-sm border transition-all cursor-pointer ${
-                  gender === value
-                    ? "border-violet-500 bg-violet-500/15 text-violet-300"
-                    : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-500"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+      <div className="space-y-6">
+        {/* Input card */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-7 shadow-xl">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xs font-semibold tracking-widest text-zinc-500 uppercase">Your Details</h2>
+            {usage && <UsageBadge remaining={usage.remaining} limit={usage.limit} />}
           </div>
-        </div>
 
-        {/* Style */}
-        <div className="mb-2">
-          <label className="block text-sm text-zinc-400 mb-2">
-            Style <span className="text-zinc-600 text-xs">(required)</span>
-          </label>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {STYLES.map(({ value, label, icon, desc }) => {
-              const active = styles.includes(value);
-              return (
+          {/* Name */}
+          <div className="mb-5">
+            <label className="block text-sm text-zinc-400 mb-2">Your name</label>
+            <input
+              type="text"
+              value={originalName}
+              onChange={(e) => setOriginalName(e.target.value)}
+              placeholder="e.g. Emily, James, Sofia…"
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-zinc-100 placeholder-zinc-600 text-sm outline-none focus:border-amber-500 transition-colors"
+            />
+          </div>
+
+          {/* Birthday */}
+          <div className="mb-5">
+            <label className="block text-sm text-zinc-400 mb-2">Birthday</label>
+            <input
+              type="date"
+              value={birthday}
+              onChange={(e) => setBirthday(e.target.value)}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-zinc-100 text-sm outline-none focus:border-amber-500 transition-colors [color-scheme:dark]"
+            />
+            {birthday && (
+              <div className="mt-2 text-xs text-zinc-500">
+                {formatBirthday(birthday)} · 生肖: {getChineseZodiac(birthday)}
+              </div>
+            )}
+          </div>
+
+          {/* Gender */}
+          <div className="mb-5">
+            <label className="block text-sm text-zinc-400 mb-2">Gender</label>
+            <div className="flex gap-2 flex-wrap">
+              {GENDERS.map(({ value, label }) => (
                 <button
                   key={value}
-                  onClick={() => toggleStyle(value)}
-                  className={`flex flex-col items-start gap-1 p-4 rounded-xl border text-left cursor-pointer transition-all ${
-                    active
-                      ? "border-amber-500 bg-amber-500/10"
-                      : "border-zinc-700 bg-zinc-800 hover:border-zinc-500"
+                  onClick={() => setGender(value)}
+                  className={`px-5 py-2 rounded-xl text-sm border transition-all cursor-pointer ${
+                    gender === value
+                      ? "border-violet-500 bg-violet-500/15 text-violet-300"
+                      : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-500"
                   }`}
                 >
-                  <span className="text-xl">{icon}</span>
-                  <span className={`text-sm font-semibold ${active ? "text-amber-400" : "text-zinc-200"}`}>
-                    {label}
-                  </span>
-                  <span className="text-xs text-zinc-500 leading-snug">{desc}</span>
+                  {label}
                 </button>
-              );
-            })}
+              ))}
+            </div>
           </div>
-          {error && <p className="mt-3 text-red-400 text-sm">{error}</p>}
+
+          {/* Style */}
+          <div className="mb-2">
+            <label className="block text-sm text-zinc-400 mb-2">
+              Style <span className="text-zinc-600 text-xs">(required)</span>
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {STYLES.map(({ value, label, icon, desc }) => {
+                const active = styles.includes(value);
+                return (
+                  <button
+                    key={value}
+                    onClick={() => toggleStyle(value)}
+                    className={`flex flex-col items-start gap-1 p-4 rounded-xl border text-left cursor-pointer transition-all ${
+                      active
+                        ? "border-amber-500 bg-amber-500/10"
+                        : "border-zinc-700 bg-zinc-800 hover:border-zinc-500"
+                    }`}
+                  >
+                    <span className="text-xl">{icon}</span>
+                    <span className={`text-sm font-semibold ${active ? "text-amber-400" : "text-zinc-200"}`}>{label}</span>
+                    <span className="text-xs text-zinc-500 leading-snug">{desc}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {error && <p className="mt-3 text-red-400 text-sm">{error}</p>}
+          </div>
+
+          {/* Actions */}
+          <div className="mt-6 flex gap-3 flex-wrap items-center">
+            <button
+              onClick={handleGenerate}
+              disabled={isLoading}
+              className="flex items-center gap-2 px-7 py-3 rounded-xl bg-amber-500 text-zinc-900 font-semibold text-sm hover:bg-amber-400 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-amber-500/20 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed disabled:translate-y-0"
+            >
+              {isLoading ? (
+                <><span className="w-4 h-4 border-2 border-zinc-900/30 border-t-zinc-900 rounded-full animate-spin" /> Generating…</>
+              ) : (
+                <>✦ Generate Names</>
+              )}
+            </button>
+            {!session?.user && (
+              <p className="text-xs text-zinc-600">
+                <button onClick={() => signIn('google')} className="text-amber-500 hover:text-amber-400 underline">Sign in</button>
+                {' '}for 10/day
+              </p>
+            )}
+          </div>
         </div>
 
-        {/* Actions */}
-        <div className="mt-6 flex gap-3 flex-wrap">
-          <button
-            onClick={handleGenerate}
-            className="flex items-center gap-2 px-7 py-3 rounded-xl bg-amber-500 text-zinc-900 font-semibold text-sm hover:bg-amber-400 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-amber-500/20 cursor-pointer"
-          >
-            ✦ Generate Names
-          </button>
-        </div>
+        {/* Results */}
+        {generated && names.length > 0 && (
+          <NameResults names={names} onRefresh={handleRefresh} />
+        )}
       </div>
-
-      {/* Results */}
-      {generated && names.length > 0 && (
-        <NameResults names={names} onRefresh={handleRefresh} />
-      )}
-    </div>
+    </>
   );
 }

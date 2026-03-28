@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { USAGE_LIMITS } from '@/lib/types';
+import { userSubscriptions } from '@/lib/subscriptionStore';
 
 export const dynamic = 'force-dynamic';
 
-// In-memory store for demo (replace with D1 in production)
+// In-memory usage store (replace with D1 in production)
 const usageStore = new Map<string, { count: number; date: string }>();
 
 function getTodayString(): string {
@@ -13,6 +14,13 @@ function getTodayString(): string {
 
 function getKey(identifier: string): string {
   return `${identifier}:${getTodayString()}`;
+}
+
+function getTier(email: string | null | undefined): 'anonymous' | 'free' | 'pro' {
+  if (!email) return 'anonymous';
+  const sub = userSubscriptions.get(email);
+  if (sub && sub.expiresAt > Date.now()) return 'pro';
+  return 'free';
 }
 
 export async function GET(req: NextRequest) {
@@ -24,8 +32,7 @@ export async function GET(req: NextRequest) {
 
   if (session?.user?.email) {
     identifier = session.user.email;
-    // TODO: check actual subscription from D1
-    tier = 'free';
+    tier = getTier(session.user.email);
   } else {
     const ip = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? 'unknown';
     identifier = `ip:${ip}`;
@@ -55,7 +62,7 @@ export async function POST(req: NextRequest) {
 
   if (session?.user?.email) {
     identifier = session.user.email;
-    tier = 'free';
+    tier = getTier(session.user.email);
   } else {
     const ip = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? 'unknown';
     identifier = `ip:${ip}`;
