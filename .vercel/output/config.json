@@ -16,6 +16,26 @@
       "continue": true
     },
     {
+      "src": "/_next/data/(.*)",
+      "missing": [
+        {
+          "type": "header",
+          "key": "x-nextjs-data"
+        }
+      ],
+      "transforms": [
+        {
+          "type": "request.headers",
+          "op": "append",
+          "target": {
+            "key": "x-nextjs-data"
+          },
+          "args": "1"
+        }
+      ],
+      "continue": true
+    },
+    {
       "src": "/404/?",
       "status": 404,
       "continue": true,
@@ -32,7 +52,7 @@
       "continue": true
     },
     {
-      "src": "^/_next/data/1mRmjh74nZUMnIE0QMoUt/(.*).json",
+      "src": "^/_next/data/aOp6Dq2ZYHMaYrg1oIxXC/(.*).json",
       "dest": "/$1",
       "override": true,
       "continue": true,
@@ -79,7 +99,7 @@
           "key": "x-nextjs-data"
         }
       ],
-      "dest": "/_next/data/1mRmjh74nZUMnIE0QMoUt/index.json",
+      "dest": "/_next/data/aOp6Dq2ZYHMaYrg1oIxXC/index.json",
       "continue": true,
       "override": true
     },
@@ -91,7 +111,7 @@
           "key": "x-nextjs-data"
         }
       ],
-      "dest": "/_next/data/1mRmjh74nZUMnIE0QMoUt/$1.json",
+      "dest": "/_next/data/aOp6Dq2ZYHMaYrg1oIxXC/$1.json",
       "continue": true,
       "override": true
     },
@@ -131,7 +151,7 @@
       "handle": "filesystem"
     },
     {
-      "src": "^/_next/data/1mRmjh74nZUMnIE0QMoUt/(.*).json",
+      "src": "^/_next/data/aOp6Dq2ZYHMaYrg1oIxXC/(.*).json",
       "dest": "/$1",
       "continue": true,
       "has": [
@@ -207,7 +227,7 @@
           "key": "x-nextjs-data"
         }
       ],
-      "dest": "/_next/data/1mRmjh74nZUMnIE0QMoUt/index.json",
+      "dest": "/_next/data/aOp6Dq2ZYHMaYrg1oIxXC/index.json",
       "continue": true
     },
     {
@@ -218,11 +238,11 @@
           "key": "x-nextjs-data"
         }
       ],
-      "dest": "/_next/data/1mRmjh74nZUMnIE0QMoUt/$1.json",
+      "dest": "/_next/data/aOp6Dq2ZYHMaYrg1oIxXC/$1.json",
       "continue": true
     },
     {
-      "src": "^/_next/data/1mRmjh74nZUMnIE0QMoUt/api/auth/(?<nxtPnextauth>.+?)(?:/)?.json$",
+      "src": "^/_next/data/aOp6Dq2ZYHMaYrg1oIxXC/api/auth/(?<nxtPnextauth>.+?)(?:/)?.json$",
       "dest": "/api/auth/[...nextauth]?nxtPnextauth=$nxtPnextauth"
     },
     {
@@ -234,7 +254,7 @@
       "dest": "/api/auth/[...nextauth]?nxtPnextauth=$nxtPnextauth"
     },
     {
-      "src": "^/_next/data/1mRmjh74nZUMnIE0QMoUt/(.*).json",
+      "src": "^/_next/data/aOp6Dq2ZYHMaYrg1oIxXC/(.*).json",
       "headers": {
         "x-nextjs-matched-path": "/$1"
       },
@@ -242,14 +262,14 @@
       "override": true
     },
     {
-      "src": "^/_next/data/1mRmjh74nZUMnIE0QMoUt/(.*).json",
+      "src": "^/_next/data/aOp6Dq2ZYHMaYrg1oIxXC/(.*).json",
       "dest": "__next_data_catchall"
     },
     {
       "handle": "hit"
     },
     {
-      "src": "/_next/static/(?:[^/]+/pages|pages|chunks|runtime|css|image|media|1mRmjh74nZUMnIE0QMoUt)/.+",
+      "src": "/_next/static/(?:[^/]+/pages|pages|chunks|runtime|css|image|media|aOp6Dq2ZYHMaYrg1oIxXC)/.+",
       "headers": {
         "cache-control": "public,max-age=31536000,immutable"
       },
@@ -278,12 +298,18 @@
     {
       "src": "/.*",
       "dest": "/404",
-      "status": 404
+      "status": 404,
+      "headers": {
+        "x-next-error-status": "404"
+      }
     },
     {
       "src": "/.*",
       "dest": "/500",
-      "status": 500
+      "status": 500,
+      "headers": {
+        "x-next-error-status": "500"
+      }
     }
   ],
   "images": {

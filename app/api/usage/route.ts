@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getEdgeSession as auth } from '@/lib/session';
 import { USAGE_LIMITS } from '@/lib/types';
 import { getDB, getUsageCount, incrementUsage, getUserByEmail } from '@/lib/db';
 
@@ -29,7 +29,7 @@ async function resolveTier(email: string): Promise<'free' | 'pro'> {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
+  const session = await auth(req);
   const db = getDB();
 
   let used = 0;
@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
+  const session = await auth(req);
   const db = getDB();
 
   let used = 0;

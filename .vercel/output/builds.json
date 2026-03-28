@@ -3,13 +3,14 @@
   "target": "preview",
   "argv": [
     "/root/.nvm/versions/node/v22.22.1/bin/node",
-    "/root/.openclaw/workspace/chinese-name-generator-next/node_modules/.bin/vercel",
+    "/root/.npm/_npx/69f9afb961c37556/node_modules/.bin/vc",
     "build"
   ],
+  "cliVersion": "50.37.3",
   "builds": [
     {
       "require": "@vercel/next",
-      "requirePath": "/root/.openclaw/workspace/chinese-name-generator-next/node_modules/@vercel/next/dist/index",
+      "requirePath": "/root/.npm/_npx/69f9afb961c37556/node_modules/@vercel/next/dist/index",
       "apiVersion": 2,
       "src": "package.json",
       "use": "@vercel/next",

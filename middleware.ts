@@ -1,13 +1,12 @@
-import { auth } from '@/auth';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getSession } from '@/lib/auth-edge';
 
-export default auth((req) => {
+export async function middleware(req: NextRequest) {
   const { nextUrl } = req;
-  const isLoggedIn = !!req.auth?.user;
-
-  // Protected routes — redirect to login if not authenticated
-  const protectedPaths = ['/profile'];
-  const isProtected = protectedPaths.some((p) => nextUrl.pathname.startsWith(p));
+  const session = await getSession(req as unknown as Request);
+  const isLoggedIn = !!session;
+  const isProtected = nextUrl.pathname.startsWith('/profile');
+  const isLoginPage = nextUrl.pathname === '/login';
 
   if (isProtected && !isLoggedIn) {
     const loginUrl = new URL('/login', nextUrl.origin);
@@ -15,16 +14,13 @@ export default auth((req) => {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Already logged in — redirect away from login page
-  if (nextUrl.pathname === '/login' && isLoggedIn) {
+  if (isLoginPage && isLoggedIn) {
     return NextResponse.redirect(new URL('/', nextUrl.origin));
   }
 
   return NextResponse.next();
-});
+}
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|api/auth).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/auth).*)'],
 };

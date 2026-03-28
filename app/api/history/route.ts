@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getEdgeSession as auth } from '@/lib/session';
 import { getDB, getUserByEmail, getNameHistory } from '@/lib/db';
 import { HISTORY_LIMITS } from '@/lib/types';
 
@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'edge';
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
+  const session = await auth(req);
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Login required' }, { status: 401 });
   }

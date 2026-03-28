@@ -127,7 +127,7 @@ function UsageBadge({ remaining, limit }: UsageBadgeProps) {
 
 // ── Main Component ───────────────────────────────────────────────────────────
 export default function InputForm() {
-  const { data: session } = useSession();
+  
   const [originalName, setOriginalName] = useState("");
   const [gender, setGender]     = useState<Gender>("neutral");
   const [styles, setStyles]     = useState<Style[]>([]);
@@ -282,12 +282,12 @@ export default function InputForm() {
                 <>✦ Generate Names</>
               )}
             </button>
-            {!session?.user && (
+            {!usage?.tier || usage.tier === 'anonymous' ? (
               <p className="text-xs text-zinc-600">
-                <button onClick={() => signIn('google')} className="text-amber-500 hover:text-amber-400 underline">Sign in</button>
+                <a href="/login" className="text-amber-500 hover:text-amber-400 underline">Sign in</a>
                 {' '}for 10/day
               </p>
-            )}
+            ) : null}
           </div>
         </div>
 

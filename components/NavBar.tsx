@@ -1,29 +1,47 @@
 'use client';
 
 import Link from 'next/link';
-import { signIn, signOut } from 'next-auth/react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
-interface NavBarProps {
-  user: {
-    name?: string | null;
-    email?: string | null;
-    image?: string | null;
-  } | null;
+interface User {
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
 }
 
-export default function NavBar({ user }: NavBarProps) {
+interface NavBarProps {
+  user?: User | null;
+}
+
+export default function NavBar({ user: initialUser }: NavBarProps) {
+  const [user, setUser] = useState<User | null>(initialUser ?? null);
+  const router = useRouter();
+
+  useEffect(() => {
+    // Fetch session on client
+    fetch('/api/auth/session')
+      .then((r) => r.json())
+      .then((d: any) => { if (d?.user) setUser(d.user); })
+      .catch(() => {});
+  }, []);
+
+  const handleSignIn = () => {
+    window.location.href = `/api/auth/signin/google?callbackUrl=${encodeURIComponent(window.location.pathname)}`;
+  };
+
+  const handleSignOut = async () => {
+    await fetch('/api/auth/signout', { method: 'POST' });
+    window.location.href = '/';
+  };
+
   return (
     <nav className="flex items-center justify-between py-2">
       <div className="text-lg">🀄</div>
-
       <div className="flex items-center gap-3">
-        <Link
-          href="/pricing"
-          className="text-xs text-zinc-500 hover:text-zinc-800 transition-colors"
-        >
+        <Link href="/pricing" className="text-xs text-zinc-500 hover:text-zinc-800 transition-colors">
           Pricing
         </Link>
-
         {user ? (
           <div className="flex items-center gap-2">
             <Link href="/profile" className="flex items-center gap-2 group">
@@ -43,7 +61,7 @@ export default function NavBar({ user }: NavBarProps) {
               </span>
             </Link>
             <button
-              onClick={() => signOut()}
+              onClick={handleSignOut}
               className="text-xs text-zinc-400 hover:text-red-500 transition-colors"
             >
               Sign out
@@ -51,7 +69,7 @@ export default function NavBar({ user }: NavBarProps) {
           </div>
         ) : (
           <button
-            onClick={() => signIn('google')}
+            onClick={handleSignIn}
             className="text-xs bg-gradient-to-r from-red-500 to-amber-500 text-white px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity font-medium"
           >
             Sign in

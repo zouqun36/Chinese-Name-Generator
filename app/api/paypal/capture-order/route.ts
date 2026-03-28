@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getEdgeSession as auth } from '@/lib/session';
 import { getDB, updateUserSubscription } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -29,7 +29,7 @@ async function getPayPalToken(): Promise<string> {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
+  const session = await auth(req);
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Login required' }, { status: 401 });
   }

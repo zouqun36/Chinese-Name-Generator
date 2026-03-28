@@ -1,6 +1,6 @@
 'use client';
 
-import { signOut } from 'next-auth/react';
+
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
@@ -86,7 +86,7 @@ export default function ProfileClient({ user }: ProfileClientProps) {
         <Link href="/" className="text-gray-500 hover:text-gray-800 text-sm flex items-center gap-1">
           ← Back to Generator
         </Link>
-        <button onClick={() => signOut({ callbackUrl: '/' })} className="text-sm text-red-500 hover:text-red-700">
+        <button onClick={() => { window.location.href = '/api/auth/signout'; }} className="text-sm text-red-500 hover:text-red-700">
           Sign out
         </button>
       </div>
