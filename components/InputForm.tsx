@@ -154,7 +154,7 @@ export default function InputForm() {
     try {
       // Check & increment usage
       const res = await fetch('/api/usage', { method: 'POST' });
-      const data = await res.json();
+      const data = await res.json() as any;
 
       if (res.status === 429) {
         setShowUpgrade(true);

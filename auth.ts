@@ -1,5 +1,6 @@
 import NextAuth from 'next-auth';
 import Google from 'next-auth/providers/google';
+import { getDB, upsertUser } from '@/lib/db';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
@@ -9,9 +10,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
+    async signIn({ user, account, profile }) {
+      // Sync user to D1 on every sign-in
+      const db = getDB();
+      if (db && user.email) {
+        try {
+          await upsertUser(db, {
+            email: user.email,
+            name: user.name ?? null,
+            avatar: user.image ?? null,
+            googleId: (profile as any)?.sub ?? null,
+          });
+        } catch (err) {
+          console.error('Failed to upsert user to D1:', err);
+          // Don't block sign-in if DB write fails
+        }
+      }
+      return true;
+    },
     async jwt({ token, account, profile }) {
       if (account && profile) {
-        token.googleId = profile.sub;
+        token.googleId = (profile as any).sub;
       }
       return token;
     },

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe } from '@/lib/stripe';
-import { userSubscriptions } from '@/lib/subscriptionStore';
+import { getDB, updateUserSubscription } from '@/lib/db';
 import Stripe from 'stripe';
 
 export const dynamic = 'force-dynamic';
@@ -26,15 +26,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
   }
 
+  const db = getDB();
+
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session;
       const email = session.metadata?.userEmail ?? session.customer_email;
       if (email && session.subscription) {
-        // Fetch subscription to get period end
         const sub = await getStripe().subscriptions.retrieve(session.subscription as string);
-        const expiresAt = (sub as any).current_period_end * 1000; // ms
-        userSubscriptions.set(email, { tier: 'pro', expiresAt });
+        const expiresAt = (sub as any).current_period_end * 1000;
+        if (db) {
+          await updateUserSubscription(db, email, 'pro', expiresAt);
+        }
         console.log(`✅ Upgraded ${email} to Pro until ${new Date(expiresAt).toISOString()}`);
       }
       break;
@@ -43,12 +46,12 @@ export async function POST(req: NextRequest) {
     case 'customer.subscription.updated': {
       const sub = event.data.object as Stripe.Subscription;
       const email = sub.metadata?.userEmail;
-      if (email) {
-        if (sub.status === 'active') {
-          const expiresAt = (sub as any).current_period_end * 1000;
-          userSubscriptions.set(email, { tier: 'pro', expiresAt });
-          console.log(`🔄 Renewed ${email} until ${new Date(expiresAt).toISOString()}`);
+      if (email && sub.status === 'active') {
+        const expiresAt = (sub as any).current_period_end * 1000;
+        if (db) {
+          await updateUserSubscription(db, email, 'pro', expiresAt);
         }
+        console.log(`🔄 Renewed ${email} until ${new Date(expiresAt).toISOString()}`);
       }
       break;
     }
@@ -56,8 +59,8 @@ export async function POST(req: NextRequest) {
     case 'customer.subscription.deleted': {
       const sub = event.data.object as Stripe.Subscription;
       const email = sub.metadata?.userEmail;
-      if (email) {
-        userSubscriptions.delete(email);
+      if (email && db) {
+        await updateUserSubscription(db, email, 'free', null);
         console.log(`❌ Cancelled subscription for ${email}`);
       }
       break;

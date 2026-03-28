@@ -1,0 +1,9 @@
+name = "chinese-name-generator"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = ".vercel/output/static"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "chinese-name-generator"
+database_id = "a6178273-9e91-4ae6-91ec-79f2813a87b3"

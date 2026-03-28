@@ -23,7 +23,7 @@ function PricingInner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ plan }),
       });
-      const data = await res.json();
+      const data = await res.json() as any;
       if (data.url) {
         window.location.href = data.url;
       } else {

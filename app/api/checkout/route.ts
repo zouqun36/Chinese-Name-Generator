@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Login required' }, { status: 401 });
   }
 
-  const body = await req.json();
+  const body = await req.json() as { plan?: string };
   const plan = body.plan as 'monthly' | 'yearly';
 
   if (!['monthly', 'yearly'].includes(plan)) {

@@ -21,31 +21,63 @@ interface UsageData {
 
 interface HistoryItem {
   id: string;
-  originalName: string | null;
+  original_name: string | null;
   gender: string | null;
-  generatedNames: string[];
-  createdAt: string;
+  created_at: number;
+  generatedNames: Array<{ chinese: string; pinyin: string; meaning: string }>;
+}
+
+interface FavoriteItem {
+  id: string;
+  chinese_name: string;
+  pinyin: string | null;
+  meaning: string | null;
+  style: string | null;
+  created_at: number;
 }
 
 export default function ProfileClient({ user }: ProfileClientProps) {
   const [usage, setUsage] = useState<UsageData | null>(null);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'favorites'>('overview');
+  const [dataLoaded, setDataLoaded] = useState({ history: false, favorites: false });
 
   useEffect(() => {
-    fetch('/api/usage')
-      .then((r) => r.json())
-      .then(setUsage)
-      .catch(console.error);
+    fetch('/api/usage').then((r) => r.json()).then((d) => setUsage(d as UsageData)).catch(console.error);
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'history' && !dataLoaded.history) {
+      fetch('/api/history')
+        .then((r) => r.json())
+        .then((d: any) => { setHistory(d.history ?? []); setDataLoaded((p) => ({ ...p, history: true })); })
+        .catch(console.error);
+    }
+    if (activeTab === 'favorites' && !dataLoaded.favorites) {
+      fetch('/api/favorites')
+        .then((r) => r.json())
+        .then((d: any) => { setFavorites(d.favorites ?? []); setDataLoaded((p) => ({ ...p, favorites: true })); })
+        .catch(console.error);
+    }
+  }, [activeTab]);
 
   const tierBadge = {
     anonymous: { label: 'Guest', color: 'bg-gray-100 text-gray-600' },
     free: { label: 'Free', color: 'bg-blue-100 text-blue-700' },
     pro: { label: 'Pro ⭐', color: 'bg-amber-100 text-amber-700' },
   };
-
   const tier = (usage?.tier ?? 'free') as keyof typeof tierBadge;
   const badge = tierBadge[tier];
+
+  const removeFavorite = async (chineseName: string) => {
+    await fetch('/api/favorites', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chineseName }),
+    });
+    setFavorites((prev) => prev.filter((f) => f.chinese_name !== chineseName));
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 to-amber-50">
@@ -54,10 +86,7 @@ export default function ProfileClient({ user }: ProfileClientProps) {
         <Link href="/" className="text-gray-500 hover:text-gray-800 text-sm flex items-center gap-1">
           ← Back to Generator
         </Link>
-        <button
-          onClick={() => signOut({ callbackUrl: '/' })}
-          className="text-sm text-red-500 hover:text-red-700"
-        >
+        <button onClick={() => signOut({ callbackUrl: '/' })} className="text-sm text-red-500 hover:text-red-700">
           Sign out
         </button>
       </div>
@@ -82,14 +111,11 @@ export default function ProfileClient({ user }: ProfileClientProps) {
             </div>
           </div>
 
-          {/* Usage bar */}
           {usage && (
             <div className="mt-5">
               <div className="flex justify-between text-sm mb-1">
                 <span className="text-gray-600">Today&apos;s generations</span>
-                <span className="font-medium text-gray-800">
-                  {usage.used} / {usage.limit}
-                </span>
+                <span className="font-medium text-gray-800">{usage.used} / {usage.limit}</span>
               </div>
               <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                 <div
@@ -124,6 +150,9 @@ export default function ProfileClient({ user }: ProfileClientProps) {
               }`}
             >
               {tab}
+              {tab === 'favorites' && favorites.length > 0 && (
+                <span className="ml-1 text-xs">({favorites.length})</span>
+              )}
             </button>
           ))}
         </div>
@@ -139,21 +168,15 @@ export default function ProfileClient({ user }: ProfileClientProps) {
                   <p className="text-xs text-gray-500 mt-1">Daily Limit</p>
                 </div>
                 <div className="bg-gray-50 rounded-xl p-4 text-center">
-                  <p className="text-3xl font-bold text-amber-500">
-                    {tier === 'pro' ? '50' : '5'}
-                  </p>
+                  <p className="text-3xl font-bold text-amber-500">{tier === 'pro' ? '50' : '5'}</p>
                   <p className="text-xs text-gray-500 mt-1">Max Favorites</p>
                 </div>
                 <div className="bg-gray-50 rounded-xl p-4 text-center">
-                  <p className="text-3xl font-bold text-green-500">
-                    {tier === 'pro' ? '365' : '30'}
-                  </p>
+                  <p className="text-3xl font-bold text-green-500">{tier === 'pro' ? '365' : '30'}</p>
                   <p className="text-xs text-gray-500 mt-1">History Days</p>
                 </div>
                 <div className="bg-gray-50 rounded-xl p-4 text-center">
-                  <p className="text-3xl font-bold text-purple-500">
-                    {tier === 'pro' ? '✓' : '✗'}
-                  </p>
+                  <p className="text-3xl font-bold text-purple-500">{tier === 'pro' ? '✓' : '✗'}</p>
                   <p className="text-xs text-gray-500 mt-1">Audio + Export</p>
                 </div>
               </div>
@@ -161,18 +184,76 @@ export default function ProfileClient({ user }: ProfileClientProps) {
           )}
 
           {activeTab === 'history' && (
-            <div className="text-center py-8 text-gray-400">
-              <div className="text-4xl mb-3">📜</div>
-              <p className="text-sm">Your name generation history will appear here.</p>
-              <p className="text-xs mt-1 text-gray-300">Requires database integration (coming soon)</p>
+            <div>
+              <h3 className="font-semibold text-gray-800 mb-4">Generation History</h3>
+              {!dataLoaded.history ? (
+                <div className="text-center py-8 text-gray-400 text-sm">Loading…</div>
+              ) : history.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">
+                  <div className="text-4xl mb-3">📜</div>
+                  <p className="text-sm">No history yet. Generate some names!</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {history.map((item) => (
+                    <div key={item.id} className="border border-gray-100 rounded-xl p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="text-sm text-gray-500">
+                          {item.original_name ? `For: ${item.original_name}` : 'Anonymous'}{' '}
+                          {item.gender && `· ${item.gender}`}
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          {new Date(item.created_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {item.generatedNames.slice(0, 3).map((n, i) => (
+                          <span key={i} className="text-lg font-bold text-gray-800">{n.chinese}</span>
+                        ))}
+                        {item.generatedNames.length > 3 && (
+                          <span className="text-sm text-gray-400 self-center">+{item.generatedNames.length - 3} more</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === 'favorites' && (
-            <div className="text-center py-8 text-gray-400">
-              <div className="text-4xl mb-3">⭐</div>
-              <p className="text-sm">Your saved favorite names will appear here.</p>
-              <p className="text-xs mt-1 text-gray-300">Requires database integration (coming soon)</p>
+            <div>
+              <h3 className="font-semibold text-gray-800 mb-4">
+                Saved Favorites
+                {usage && <span className="ml-2 text-sm font-normal text-gray-400">({favorites.length}/{tier === 'pro' ? 50 : 5})</span>}
+              </h3>
+              {!dataLoaded.favorites ? (
+                <div className="text-center py-8 text-gray-400 text-sm">Loading…</div>
+              ) : favorites.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">
+                  <div className="text-4xl mb-3">⭐</div>
+                  <p className="text-sm">No favorites yet. Star a name from the generator!</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {favorites.map((fav) => (
+                    <div key={fav.id} className="border border-gray-100 rounded-xl p-4 flex items-center justify-between">
+                      <div>
+                        <p className="text-2xl font-bold text-gray-900">{fav.chinese_name}</p>
+                        {fav.pinyin && <p className="text-sm text-amber-500">{fav.pinyin}</p>}
+                        {fav.meaning && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{fav.meaning}</p>}
+                      </div>
+                      <button
+                        onClick={() => removeFavorite(fav.chinese_name)}
+                        className="text-gray-300 hover:text-red-400 transition-colors ml-4 text-xl"
+                        title="Remove"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
